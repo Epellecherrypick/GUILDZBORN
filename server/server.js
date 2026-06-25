@@ -13,7 +13,12 @@ const authRoutes = require('./routes/auth');
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+const corsOptions = {
+  origin: 'https://guildzborn.onrender.com', // Allow only your frontend to make requests
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/users", userRoutes);

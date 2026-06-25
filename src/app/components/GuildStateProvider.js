@@ -54,7 +54,7 @@ function validateChallengeTime(isoString) {
 }
 
 export default function GuildStateProvider({ children }) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://guildzborn-r8m8.onrender.com";
   // Start with the same initial state on server and client to avoid
   // hydration mismatches. Load persisted state from localStorage after
   // hydration in an effect so the first client render matches the server.
