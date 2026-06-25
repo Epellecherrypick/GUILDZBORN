@@ -1,10 +1,11 @@
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+npm-debug.log* # debug
+yarn-debug.log* # debug
+yarn-error.log* # debug
 lerna-debug.log*
+.pnpm-debug.log* # debug
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -25,21 +26,20 @@ coverage
 # nyc test coverage
 .nyc_output
 
+# testing
+coverage
+
 # Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
 # Bower dependency directory (https://bower.io/)
 bower_components
 
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons (https://nodejs.org/api/addons.html)
-build/Release
-
 # Dependency directories
 node_modules/
 jspm_packages/
+/.pnp
+.pnp.*
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
@@ -62,9 +62,6 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
-# Yarn Integrity file
-.yarn-integrity
-
 # dotenv environment variable files
 .env
 .env.*
@@ -76,11 +73,13 @@ web_modules/
 
 # Next.js build output
 .next
+.next/
 out
+out/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
+dist/
 .output
 
 # Gatsby files
@@ -99,12 +98,12 @@ dist
 .svelte-kit/
 
 # vitepress build output
-**/.vitepress/dist
+**/.vitepress/dist/
 
 # vitepress cache directory
-**/.vitepress/cache
+**/.vitepress/cache/
 
-# Docusaurus cache and generated files
+# Docusaurus
 .docusaurus
 
 # Serverless directories
@@ -125,19 +124,33 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# pnpm
-.pnpm-store
-
-# yarn v3
-.pnp.*
+# Yarn
+.yarn-integrity
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+next-env.d.ts
 
-# Vite files
+# vercel
+.vercel
+
+# pnpm
+.pnpm-store
+
+# Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Production build
+build/
+
+# Misc
+.DS_Store
+*.pem
+
+# node-waf configuration
+.lock-wscript
