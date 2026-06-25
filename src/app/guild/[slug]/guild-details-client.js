@@ -70,9 +70,12 @@ export default function GuildDetailsClient({ initialGuild }) {
     );
   }
 
-  const handleJoin = () => {
-    const result = joinGuild(guild.id);
-    setJoinFeedback(result.error || "Your request has been submitted to the creator.");
+  const handleJoin = async () => {
+    const result = await joinGuild(guild.id);
+    setJoinFeedback(result.error || result.message || "Your request has been submitted.");
+    if (result.success) {
+      // Optionally, you can add a toast notification here
+    }
   };
 
   const handleChallenge = () => {

@@ -77,6 +77,21 @@ export default function GuildStateProvider({ children }) {
     }
   }, []);
 
+  const refetchData = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/guilds`);
+      if (!resp.ok) throw new Error('Failed to fetch guilds');
+      const guilds = await resp.json();
+
+      // You can add fetches for other data like challenges here if needed
+
+      setState(current => ({ ...current, guilds }));
+    } catch (err) {
+      console.error("Failed to refetch data:", err);
+    }
+  }, [API_BASE]);
+
   const issueCreationCode = useCallback(async (targetUid, hours = 3) => {
     if (state.currentUser.role !== "spectator") {
       return { error: "Only spectator can issue creation codes." };
@@ -300,7 +315,8 @@ export default function GuildStateProvider({ children }) {
       if (!resp.ok) return { error: data.error || "Server error creating guild" };
       const guild = data.guild;
       setState((current) => ({ ...current, guilds: [guild, ...current.guilds] }));
-      return { success: true, guild };
+      await refetchData(); // Re-fetch all data to ensure consistency
+      return { success: true, guild: data.guild };
     } catch (err) {
       return { error: `Network error: ${err.message}. Please try again.` };
     }
@@ -350,39 +366,23 @@ export default function GuildStateProvider({ children }) {
   }, [state.guilds, state.currentUser.id]);
 
   const joinGuild = useCallback((guildId) => {
-    if (activeGuildId) {
-      return { error: "You have already joined a guild. Only one active guild is allowed." };
-    }
-    const guild = state.guilds.find((guild) => guild.id === guildId);
-    if (!guild) {
-      return { error: "Guild not found." };
-    }
-    if (guild.members.some((member) => member.id === state.currentUser.id)) {
-      return { error: "You are already a member of this guild." };
-    }
-    if (guild.pendingRequests.some((request) => request.id === state.currentUser.id)) {
-      return { error: "You already have a pending request for this guild." };
-    }
-
-    const updatedGuilds = state.guilds.map((target) =>
-      target.id === guildId
-        ? {
-            ...target,
-            pendingRequests: [
-              ...target.pendingRequests,
-              {
-                id: state.currentUser.id,
-                name: state.currentUser.name,
-                requestedAt: new Date().toISOString(),
-              },
-            ],
-          }
-        : target
-    );
-
-    setState((current) => ({ ...current, guilds: updatedGuilds }));
-    return { success: true };
-  }, [activeGuildId, state.guilds, state.currentUser]);
+    return (async () => {
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.authToken) headers.Authorization = `Bearer ${state.authToken}`;
+        const resp = await fetch(`${API_BASE}/api/guilds/${guildId}/join`, {
+          method: 'POST',
+          headers,
+        });
+        const data = await resp.json();
+        if (!resp.ok) return { error: data.error || "Failed to join guild" };
+        await refetchData(); // Re-fetch all data to ensure consistency
+        return { success: true, message: data.message };
+      } catch (err) {
+        return { error: `Network error: ${err.message}. Please try again.` };
+      }
+    })();
+  }, [state.authToken, API_BASE, refetchData]);
 
   const approveMember = useCallback((guildId, userId) => {
     const updatedGuilds = state.guilds.map((guild) => {
@@ -569,6 +569,7 @@ export default function GuildStateProvider({ children }) {
       ...state,
       currentGuilds,
       activeGuildId,
+      refetchData,
       isReady: true, // Add a ready flag to the full context
       getGuildBySlug,
       getGuildById,
@@ -604,6 +605,7 @@ export default function GuildStateProvider({ children }) {
       state,
       currentGuilds,
       activeGuildId,
+      refetchData,
       // Add all functions to dependency array
       getGuildBySlug,
       getGuildById,
