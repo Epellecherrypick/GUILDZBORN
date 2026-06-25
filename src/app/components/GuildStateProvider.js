@@ -302,64 +302,9 @@ export default function GuildStateProvider({ children }) {
       setState((current) => ({ ...current, guilds: [guild, ...current.guilds] }));
       return { success: true, guild };
     } catch (err) {
-      // fallback to client-side creation if server unreachable
+      return { error: `Network error: ${err.message}. Please try again.` };
     }
-
-    // Client-side fallback (keeps previous behavior)
-    const createdByUser = state.guilds.filter((g) => g.creator?.id === state.currentUser.id);
-    if (createdByUser.length >= 1) {
-      if (!code) {
-        return {
-          error:
-            "You already have a created guild. Purchase a second guild or transfer/disband your current one. Visit WhatsApp to proceed.",
-        };
-      }
-      const ok = verifyAndConsumeCreationCode(code, state.currentUser.id);
-      if (!ok.valid) return { error: `Creation code invalid: ${ok.reason}` };
-    }
-
-    const slug = name
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-      .slice(0, 40);
-    const id = `${slug}-${Date.now()}`;
-    const newGuild = {
-      id,
-      slug,
-      game,
-      name,
-      description,
-      creator: {
-        id: state.currentUser.id,
-        name: state.currentUser.name,
-        avatar: state.currentUser.avatar || defaultAvatar,
-      },
-      honoredPlayer: {
-        name: "First Recruit",
-        title: "Founding Member",
-        avatar: defaultAvatar,
-      },
-      themeAccent: "from-cyan-500 to-slate-900",
-      points: 0,
-      promoted: false,
-      inviteCount: 0,
-      admins: [state.currentUser.id],
-      members: [
-        {
-          id: state.currentUser.id,
-          name: state.currentUser.name,
-          role: "creator",
-          status: "accepted",
-          joinedAt: new Date().toISOString(),
-        },
-      ],
-      pendingRequests: [],
-      joinCode,
-    };
-    setState((current) => ({ ...current, guilds: [newGuild, ...current.guilds] }));
-    return { success: true, guild: newGuild };
-  };
+  }, [state.loggedIn, state.currentUser, state.authToken, API_BASE]);
 
   const disbandGuild = (guildId) => {
     const guild = getGuildById(guildId);
@@ -596,7 +541,7 @@ export default function GuildStateProvider({ children }) {
       return { ...challenge, scoreProofs: proofs };
     });
     setState((current) => ({ ...current, challenges: updatedChallenges }));
-  };
+  }, [state.challenges]);
 
   const finalizeMatch = useCallback((challengeId, winningGuildId) => {
     const updatedChallenges = state.challenges.map((challenge) => {

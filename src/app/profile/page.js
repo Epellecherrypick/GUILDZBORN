@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import toast from "react-hot-toast";
 import Link from "next/link";
 import { useGuildContext } from "../components/GuildStateProvider";
 
@@ -22,41 +23,68 @@ export default function ProfilePage() {
   const { currentUser, getUserGuildMemberships, disbandGuild, transferOwnership, leaveGuild, issueCreationCode } = context;
   const memberships = getUserGuildMemberships();
   const [transferTarget, setTransferTarget] = useState("");
-  const [message, setMessage] = useState("");
   const [codeUid, setCodeUid] = useState("");
   const [codeResult, setCodeResult] = useState(null);
+  const [loading, setLoading] = useState({ disband: false, transfer: false, leave: false, issueCode: false });
 
   if (!currentUser) return <div>Loading...</div>;
 
   const handleDisband = async (guildId) => {
     if (window.confirm("Are you sure you want to disband this guild? This action cannot be undone.")) {
-      const res = await disbandGuild(guildId);
-      if (res.error) setMessage(res.error);
-      else setMessage("Guild disbanded.");
+      setLoading(prev => ({ ...prev, disband: true }));
+      try {
+        const res = await disbandGuild(guildId);
+        if (res.error) toast.error(res.error);
+        else toast.success("Guild disbanded.");
+      } finally {
+        setLoading(prev => ({ ...prev, disband: false }));
+      }
     }
   };
 
   const handleTransfer = async (guildId) => {
-    if (!transferTarget) return setMessage("Enter member id to transfer to.");
+    if (!transferTarget) {
+      toast.error("Enter member id to transfer to.");
+      return;
+    }
     if (window.confirm(`Are you sure you want to transfer ownership to ${transferTarget}? You will lose creator privileges.`)) {
-      const res = await transferOwnership(guildId, transferTarget);
-      if (res.error) setMessage(res.error);
-      else setMessage("Ownership transferred.");
+      setLoading(prev => ({ ...prev, transfer: true }));
+      try {
+        const res = await transferOwnership(guildId, transferTarget);
+        if (res.error) toast.error(res.error);
+        else toast.success("Ownership transferred.");
+      } finally {
+        setLoading(prev => ({ ...prev, transfer: false }));
+      }
     }
   };
 
   const handleLeave = async (guildId) => {
     if (window.confirm("Are you sure you want to leave this guild?")) {
-      const res = await leaveGuild(guildId);
-      if (res.error) setMessage(res.error);
-      else setMessage("Left guild.");
+      setLoading(prev => ({ ...prev, leave: true }));
+      try {
+        const res = await leaveGuild(guildId);
+        if (res.error) toast.error(res.error);
+        else toast.success("Left guild.");
+      } finally {
+        setLoading(prev => ({ ...prev, leave: false }));
+      }
     }
   };
 
   const handleIssueCode = async () => {
-    const target = codeUid || currentUser.id;
-    const res = await issueCreationCode(target, 3);
-    setCodeResult(res);
+    setLoading(prev => ({ ...prev, issueCode: true }));
+    try {
+      const target = codeUid || currentUser.id;
+      const res = await issueCreationCode(target, 3);
+      setCodeResult(res);
+      if (res.error) toast.error(res.error);
+      else if (res.success) {
+        toast.success(`Code issued: ${res.code.code}`);
+      }
+    } finally {
+      setLoading(prev => ({ ...prev, issueCode: false }));
+    }
   };
 
   return (
@@ -85,17 +113,17 @@ export default function ProfilePage() {
                 <div className="mt-3 flex gap-3">
                   {member.role === "creator" ? (
                     <>
-                      <button onClick={() => handleDisband(guild.id)} className="rounded-full bg-red-600 px-3 py-2 text-sm">Disband</button>
+                      <button onClick={() => handleDisband(guild.id)} disabled={loading.disband} className="rounded-full bg-red-600 px-3 py-2 text-sm disabled:opacity-50">{loading.disband ? 'Disbanding...' : 'Disband'}</button>
                       <input
                         placeholder="member id to transfer"
                         value={transferTarget}
                         onChange={(e) => setTransferTarget(e.target.value)}
-                        className="px-3 py-2 rounded-2xl bg-slate-800 text-sm"
+                        className="px-3 py-2 rounded-2xl bg-slate-800 text-sm disabled:opacity-50"
                       />
-                      <button onClick={() => handleTransfer(guild.id)} className="rounded-full bg-amber-500 px-3 py-2 text-sm">Transfer</button>
+                      <button onClick={() => handleTransfer(guild.id)} disabled={loading.transfer} className="rounded-full bg-amber-500 px-3 py-2 text-sm disabled:opacity-50">{loading.transfer ? 'Transferring...' : 'Transfer'}</button>
                     </>
                   ) : (
-                    <button onClick={() => handleLeave(guild.id)} className="rounded-full bg-slate-700 px-3 py-2 text-sm">Leave</button>
+                    <button onClick={() => handleLeave(guild.id)} disabled={loading.leave} className="rounded-full bg-slate-700 px-3 py-2 text-sm disabled:opacity-50">{loading.leave ? 'Leaving...' : 'Leave'}</button>
                   )}
                   <Link href={`/guild/${guild.slug}`} className="rounded-full bg-cyan-500 px-3 py-2 text-sm">View</Link>
                 </div>
@@ -115,13 +143,11 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-400">If you already have a code, enter it below:</p>
             <input value={codeUid} onChange={(e) => setCodeUid(e.target.value)} placeholder="Enter code (or leave blank to issue for yourself as spectator)" className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
             <div className="mt-3 flex gap-3">
-              <button onClick={handleIssueCode} className="rounded-full bg-emerald-500 px-4 py-2 text-sm">Issue code (spectator only)</button>
-              {codeResult ? <p className="text-sm text-emerald-300">{codeResult.code ? `Code: ${codeResult.code.code}` : JSON.stringify(codeResult)}</p> : null}
+              <button onClick={handleIssueCode} disabled={loading.issueCode} className="rounded-full bg-emerald-500 px-4 py-2 text-sm disabled:opacity-50">{loading.issueCode ? 'Issuing...' : 'Issue code (spectator only)'}</button>
+              {codeResult?.error ? <p className="text-sm text-rose-400">{JSON.stringify(codeResult)}</p> : null}
             </div>
           </div>
         </div>
-
-        {message ? <p className="text-sm text-amber-300">{message}</p> : null}
       </div>
     </main>
   );
