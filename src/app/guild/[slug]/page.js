@@ -1,10 +1,3 @@
-"use client";
-
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import AvatarUploader from "../../components/AvatarUploader";
-import { useGuildContext } from "../../components/GuildStateProvider";
 import { initialGuilds } from '../../components/guild-data';
 
 export async function generateStaticParams() {
@@ -13,8 +6,16 @@ export async function generateStaticParams() {
   }));
 }
 
+// The interactive part of the page is now its own Client Component.
+"use client";
 
-export default function GuildDetailsPage() {
+import { useParams } from "next/navigation";
+import AvatarUploader from "../../components/AvatarUploader";
+import { useGuildContext } from "../../components/GuildStateProvider";
+
+// This is the Client Component that contains all the interactive logic.
+// It receives the initial guild data as a prop from the Server Component.
+function GuildDetailsClient({ initialGuild }) {
   const { slug } = useParams();
   const {
     getGuildBySlug,
@@ -35,7 +36,10 @@ export default function GuildDetailsPage() {
     promoteGuild,
   } = useGuildContext();
 
-  const guild = useMemo(() => getGuildBySlug(slug), [getGuildBySlug, slug]);
+  // Use the initial guild data passed from the server, but fall back to the context
+  // to ensure the data is always up-to-date after client-side actions.
+  const guildFromContext = useMemo(() => getGuildBySlug(slug), [getGuildBySlug, slug]);
+  const guild = guildFromContext || initialGuild;
   const isMember = guild?.members.some((member) => member.id === currentUser.id && member.status === "accepted");
   const isCreator = guild?.creator.id === currentUser.id;
   const isAdmin = guild?.members.some(
@@ -401,4 +405,17 @@ export default function GuildDetailsPage() {
       </div>
     </main>
   );
+}
+
+/**
+ * This is the main Page component, which is a Server Component.
+ * It fetches the initial data and passes it to the Client Component.
+ */
+export default function Page({ params }) {
+  const { slug } = params;
+  // On the server, we can find the initial guild data directly.
+  const initialGuild = initialGuilds.find((g) => g.slug === slug);
+
+  // We render the Client Component and pass the initial data as a prop.
+  return <GuildDetailsClient initialGuild={initialGuild} />;
 }
