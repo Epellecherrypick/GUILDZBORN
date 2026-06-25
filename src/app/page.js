@@ -8,8 +8,8 @@ export default function Home() {
   const context = useGuildContext();
 
   // Gracefully handle when context is not available (e.g., during error page rendering)
-  if (!context.guilds) {
-    return null; // Render nothing if the context is not the full, hydrated state
+  if (!context.isReady) {
+    return null; // Render nothing if the context is not the full, hydrated state.
   }
 
   const { currentGuilds, currentUser, loggedIn, selectedGame, activeGuildId, getUserGuild, signupUser, loginUser, login, logout, setSelectedGame, loginAsSpectator, createGuild } = context;

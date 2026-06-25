@@ -569,6 +569,7 @@ export default function GuildStateProvider({ children }) {
       ...state,
       currentGuilds,
       activeGuildId,
+      isReady: true, // Add a ready flag to the full context
       getGuildBySlug,
       getGuildById,
       getUserGuildMemberships,
