@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import AvatarUploader from "../../components/AvatarUploader";
 import { useGuildContext } from "../../components/GuildStateProvider";
+import { initialGuilds } from '../../components/guild-data';
+
+export async function generateStaticParams() {
+  return initialGuilds.map((guild) => ({
+    slug: guild.slug,
+  }));
+}
+
 
 export default function GuildDetailsPage() {
   const { slug } = useParams();
