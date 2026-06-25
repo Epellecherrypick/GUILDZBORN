@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { initialState, initialGuestUser, defaultAvatar } from "./guild-data";
 
 const GuildContext = createContext(null);
@@ -21,7 +21,19 @@ function getActiveGuildId(userId, guilds) {
 
 export function useGuildContext() {
   const context = useContext(GuildContext);
-  // Return null if the provider is not in the tree.
+  // If context is missing, return a safe, default version of the context
+  // to prevent crashes on pages rendered outside the provider (e.g., error pages).
+  if (!context) {
+    return {
+      ...initialState,
+      currentUser: initialGuestUser,
+      loggedIn: false,
+      spectatorMode: false,
+      // Provide empty functions for all actions to prevent "is not a function" errors.
+      getUserGuildMemberships: () => [],
+      getAdminGuilds: () => [],
+    };
+  }
   return context;
 }
 
@@ -65,7 +77,7 @@ export default function GuildStateProvider({ children }) {
     }
   }, []);
 
-  const issueCreationCode = async (targetUid, hours = 3) => {
+  const issueCreationCode = useCallback(async (targetUid, hours = 3) => {
     if (state.currentUser.role !== "spectator") {
       return { error: "Only spectator can issue creation codes." };
     }
@@ -85,9 +97,9 @@ export default function GuildStateProvider({ children }) {
     } catch (err) {
       return { error: err.message };
     }
-  };
+  }, [state.currentUser, state.authToken, API_BASE]);
 
-  const issuePromotionCode = async (targetUid, guildId, hours = 3) => {
+  const issuePromotionCode = useCallback(async (targetUid, guildId, hours = 3) => {
     if (state.currentUser.role !== "spectator") {
       return { error: "Only spectator can issue promotion codes." };
     }
@@ -107,18 +119,18 @@ export default function GuildStateProvider({ children }) {
     } catch (err) {
       return { error: err.message };
     }
-  };
+  }, [state.currentUser, state.authToken, API_BASE]);
 
-  const verifyAndConsumeCreationCode = (code, uid) => {
+  const verifyAndConsumeCreationCode = useCallback((code, uid) => {
     const entry = (state.creationCodes || []).find((c) => c.code === code && c.uid === uid && !c.used);
     if (!entry) return { valid: false, reason: "Invalid or missing code." };
     if (new Date(entry.expiresAt) < new Date()) return { valid: false, reason: "Code expired." };
     const updated = (state.creationCodes || []).map((c) => (c.code === code ? { ...c, used: true } : c));
     setState((current) => ({ ...current, creationCodes: updated }));
     return { valid: true };
-  };
+  }, [state.creationCodes]);
 
-  const verifyAndConsumePromotionCode = (code, uid, guildId) => {
+  const verifyAndConsumePromotionCode = useCallback((code, uid, guildId) => {
     const entry = (state.promotionCodes || []).find(
       (c) => c.code === code && c.uid === uid && !c.used && c.guildId === guildId
     );
@@ -127,7 +139,7 @@ export default function GuildStateProvider({ children }) {
     const updated = (state.promotionCodes || []).map((c) => (c.code === code ? { ...c, used: true } : c));
     setState((current) => ({ ...current, promotionCodes: updated }));
     return { valid: true };
-  };
+  }, [state.promotionCodes]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -157,11 +169,11 @@ export default function GuildStateProvider({ children }) {
     return [...promoted, ...others];
   }, [state.guilds]);
 
-  const login = (user) => {
+  const login = useCallback((user) => {
     setState((current) => ({ ...current, currentUser: user, loggedIn: true, spectatorMode: false }));
-  };
+  }, []);
 
-  const signupUser = async ({ uid, name, email, avatar }) => {
+  const signupUser = useCallback(async ({ uid, name, email, avatar }) => {
     try {
       const resp = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
@@ -175,9 +187,9 @@ export default function GuildStateProvider({ children }) {
     } catch (err) {
       return { error: err.message };
     }
-  };
+  }, [API_BASE]);
 
-  const loginUser = async ({ uid, email }) => {
+  const loginUser = useCallback(async ({ uid, email }) => {
     try {
       const payload = {};
       if (uid) payload.uid = uid;
@@ -194,9 +206,9 @@ export default function GuildStateProvider({ children }) {
     } catch (err) {
       return { error: err.message };
     }
-  };
+  }, [API_BASE]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setState((current) => ({
       ...current,
       currentUser: initialGuestUser,
@@ -205,13 +217,13 @@ export default function GuildStateProvider({ children }) {
       spectatorMode: false,
       authToken: null,
     }));
-  };
+  }, []);
 
-  const setSelectedGame = (game) => {
+  const setSelectedGame = useCallback((game) => {
     setState((current) => ({ ...current, selectedGame: game }));
-  };
+  }, []);
 
-  const loginAsSpectator = (password) => {
+  const loginAsSpectator = useCallback((password) => {
     // authenticate via backend to obtain spectator token
     return (async () => {
       try {
@@ -228,37 +240,37 @@ export default function GuildStateProvider({ children }) {
         return { error: err.message };
       }
     })();
-  };
+  }, [API_BASE]);
 
-  const getGuildBySlug = (slug) => state.guilds.find((guild) => guild.slug === slug);
+  const getGuildBySlug = useCallback((slug) => state.guilds.find((guild) => guild.slug === slug), [state.guilds]);
 
-  const getGuildById = (id) => state.guilds.find((guild) => guild.id === id);
+  const getGuildById = useCallback((id) => state.guilds.find((guild) => guild.id === id), [state.guilds]);
 
-  const getUserGuildMemberships = () =>
+  const getUserGuildMemberships = useCallback(() =>
     state.guilds.flatMap((guild) =>
       guild.members
         .filter((member) => member.id === state.currentUser.id)
         .map((member) => ({ guild, member }))
-    );
+    ), [state.guilds, state.currentUser.id]);
 
-  const getAdminGuilds = () =>
+  const getAdminGuilds = useCallback(() =>
     state.guilds.filter((guild) =>
       guild.members.some(
         (member) =>
           member.id === state.currentUser.id && (member.role === "creator" || member.role === "admin")
       )
-    );
+    ), [state.guilds, state.currentUser.id]);
 
-  const getUserGuild = () => {
+  const getUserGuild = useCallback(() => {
     const memberships = state.guilds.flatMap((guild) =>
       guild.members
         .filter((member) => member.id === state.currentUser.id)
         .map((member) => ({ guild, member }))
     );
     return memberships.length ? memberships[0].guild : null;
-  };
+  }, [state.guilds, state.currentUser.id]);
 
-  const createGuild = async ({ game, name, description, joinCode, code } = {}) => {
+  const createGuild = useCallback(async ({ game, name, description, joinCode, code } = {}) => {
     if (!state.loggedIn || state.currentUser.role === "spectator") {
       return { error: "Log in as a player before creating a guild." };
     }
@@ -358,8 +370,8 @@ export default function GuildStateProvider({ children }) {
     return { success: true };
   };
 
-  const transferOwnership = (guildId, newOwnerId) => {
-    const guild = getGuildById(guildId);
+  const transferOwnership = useCallback((guildId, newOwnerId) => {
+    const guild = state.guilds.find((guild) => guild.id === guildId);
     if (!guild) return { error: "Guild not found." };
     if (state.currentUser.id !== guild.creator.id) return { error: "Only the creator can transfer ownership." };
     if (!guild.members.some((m) => m.id === newOwnerId)) return { error: "New owner must be a member." };
@@ -375,10 +387,10 @@ export default function GuildStateProvider({ children }) {
     );
     setState((current) => ({ ...current, guilds: updatedGuilds }));
     return { success: true };
-  };
+  }, [state.guilds, state.currentUser.id]);
 
-  const leaveGuild = (guildId) => {
-    const guild = getGuildById(guildId);
+  const leaveGuild = useCallback((guildId) => {
+    const guild = state.guilds.find((guild) => guild.id === guildId);
     if (!guild) return { error: "Guild not found." };
     if (!guild.members.some((m) => m.id === state.currentUser.id)) return { error: "You are not a member." };
     const member = guild.members.find((m) => m.id === state.currentUser.id);
@@ -390,13 +402,13 @@ export default function GuildStateProvider({ children }) {
     );
     setState((current) => ({ ...current, guilds: updatedGuilds }));
     return { success: true };
-  };
+  }, [state.guilds, state.currentUser.id]);
 
-  const joinGuild = (guildId) => {
+  const joinGuild = useCallback((guildId) => {
     if (activeGuildId) {
       return { error: "You have already joined a guild. Only one active guild is allowed." };
     }
-    const guild = getGuildById(guildId);
+    const guild = state.guilds.find((guild) => guild.id === guildId);
     if (!guild) {
       return { error: "Guild not found." };
     }
@@ -425,9 +437,9 @@ export default function GuildStateProvider({ children }) {
 
     setState((current) => ({ ...current, guilds: updatedGuilds }));
     return { success: true };
-  };
+  }, [activeGuildId, state.guilds, state.currentUser]);
 
-  const approveMember = (guildId, userId) => {
+  const approveMember = useCallback((guildId, userId) => {
     const updatedGuilds = state.guilds.map((guild) => {
       if (guild.id !== guildId) return guild;
       const request = guild.pendingRequests.find((request) => request.id === userId);
@@ -448,9 +460,9 @@ export default function GuildStateProvider({ children }) {
       };
     });
     setState((current) => ({ ...current, guilds: updatedGuilds }));
-  };
+  }, [state.guilds]);
 
-  const rejectMember = (guildId, userId) => {
+  const rejectMember = useCallback((guildId, userId) => {
     const updatedGuilds = state.guilds.map((guild) =>
       guild.id === guildId
         ? {
@@ -460,13 +472,13 @@ export default function GuildStateProvider({ children }) {
         : guild
     );
     setState((current) => ({ ...current, guilds: updatedGuilds }));
-  };
+  }, [state.guilds]);
 
-  const promoteGuild = async (guildId, code) => {
+  const promoteGuild = useCallback(async (guildId, code) => {
     if (!state.loggedIn || state.currentUser.role === "spectator") {
       return { error: "Only a signed-in guild creator may promote a guild with a valid paid code." };
     }
-    const guild = getGuildById(guildId);
+    const guild = state.guilds.find((guild) => guild.id === guildId);
     if (!guild) return { error: "Guild not found." };
     if (guild.creator.id !== state.currentUser.id) {
       return { error: "Only the creator can promote this guild." };
@@ -493,19 +505,11 @@ export default function GuildStateProvider({ children }) {
       setState((current) => ({ ...current, guilds: updatedGuilds }));
       return { success: true, guild: updatedGuild };
     } catch (err) {
-      // fallback to client-side verification
+      return { error: `Network error: ${err.message}. Please try again.` };
     }
+  }, [state.loggedIn, state.currentUser, state.guilds, state.authToken, API_BASE]);
 
-    const ok = verifyAndConsumePromotionCode(code, state.currentUser.id, guildId);
-    if (!ok.valid) return { error: `Promotion code invalid: ${ok.reason}` };
-    const updatedGuilds = state.guilds.map((g) =>
-      g.id === guildId ? { ...g, promoted: true, inviteCount: Math.min((g.inviteCount || 0) + 10, 10) } : g
-    );
-    setState((current) => ({ ...current, guilds: updatedGuilds }));
-    return { success: true };
-  };
-
-  const sendChallengeRequest = (targetGuildId) => {
+  const sendChallengeRequest = useCallback((targetGuildId) => {
     const adminGuild = getAdminGuilds()[0];
     if (!adminGuild) {
       return { error: "You must be a guild admin or creator to request a challenge." };
@@ -535,9 +539,9 @@ export default function GuildStateProvider({ children }) {
     };
     setState((current) => ({ ...current, challenges: [...current.challenges, challenge] }));
     return { success: true };
-  };
+  }, [state.challenges, getAdminGuilds]);
 
-  const setChallengeTime = (challengeId, isoString) => {
+  const setChallengeTime = useCallback((challengeId, isoString) => {
     const validationError = validateChallengeTime(isoString);
     if (validationError) return { error: validationError };
     const updatedChallenges = state.challenges.map((challenge) =>
@@ -545,9 +549,9 @@ export default function GuildStateProvider({ children }) {
     );
     setState((current) => ({ ...current, challenges: updatedChallenges }));
     return { success: true };
-  };
+  }, [state.challenges]);
 
-  const acceptChallenge = (challengeId) => {
+  const acceptChallenge = useCallback((challengeId) => {
     const challenge = state.challenges.find((item) => item.id === challengeId);
     if (!challenge) return { error: "Challenge request not found." };
     if (!challenge.matchTime) return { error: "Set a match time before accepting." };
@@ -556,45 +560,45 @@ export default function GuildStateProvider({ children }) {
     );
     setState((current) => ({ ...current, challenges: updatedChallenges }));
     return { success: true };
-  };
+  }, [state.challenges]);
 
-  const rejectChallenge = (challengeId) => {
+  const rejectChallenge = useCallback((challengeId) => {
     const updatedChallenges = state.challenges.map((challenge) =>
       challenge.id === challengeId ? { ...challenge, status: "rejected" } : challenge
     );
     setState((current) => ({ ...current, challenges: updatedChallenges }));
-  };
+  }, [state.challenges]);
 
-  const uploadGuildAvatar = (guildId, avatarUrl) => {
+  const uploadGuildAvatar = useCallback((guildId, avatarUrl) => {
     const updatedGuilds = state.guilds.map((guild) =>
       guild.id === guildId ? { ...guild, creator: { ...guild.creator, avatar: avatarUrl } } : guild
     );
     setState((current) => ({ ...current, guilds: updatedGuilds }));
-  };
+  }, [state.guilds]);
 
-  const submitMatchProof = (challengeId, guildId, screenshotUrl, score) => {
+  const submitMatchProof = useCallback((challengeId, guildId, screenshotUrl, score) => {
     const updatedChallenges = state.challenges.map((challenge) => {
       if (challenge.id !== challengeId) return challenge;
       const existingProof = challenge.scoreProofs.find((proof) => proof.guildId === guildId);
       const proofs = existingProof
         ? challenge.scoreProofs.map((proof) =>
-            proof.guildId === guildId ? { ...proof, screenshotUrl, score, submittedAt: new Date().toISOString() } : proof
-          )
+          proof.guildId === guildId ? { ...proof, screenshotUrl, score, submittedAt: new Date().toISOString() } : proof
+        )
         : [
-            ...challenge.scoreProofs,
-            {
-              guildId,
-              screenshotUrl,
-              score,
-              submittedAt: new Date().toISOString(),
-            },
-          ];
+          ...challenge.scoreProofs,
+          {
+            guildId,
+            screenshotUrl,
+            score,
+            submittedAt: new Date().toISOString(),
+          },
+        ];
       return { ...challenge, scoreProofs: proofs };
     });
     setState((current) => ({ ...current, challenges: updatedChallenges }));
   };
 
-  const finalizeMatch = (challengeId, winningGuildId) => {
+  const finalizeMatch = useCallback((challengeId, winningGuildId) => {
     const updatedChallenges = state.challenges.map((challenge) => {
       if (challenge.id !== challengeId) return challenge;
       return { ...challenge, finalResult: { winningGuildId, resolvedAt: new Date().toISOString() } };
@@ -603,9 +607,9 @@ export default function GuildStateProvider({ children }) {
       guild.id === winningGuildId ? { ...guild, points: (guild.points || 0) + 10 } : guild
     );
     setState((current) => ({ ...current, challenges: updatedChallenges, guilds: updatedGuilds }));
-  };
+  }, [state.challenges, state.guilds]);
 
-  const submitWebsiteComplaint = (title, body) => {
+  const submitWebsiteComplaint = useCallback((title, body) => {
     const complaint = {
       id: `complaint-${Date.now()}`,
       title,
@@ -613,7 +617,7 @@ export default function GuildStateProvider({ children }) {
       submittedAt: new Date().toISOString(),
     };
     setState((current) => ({ ...current, websiteComplaints: [...current.websiteComplaints, complaint] }));
-  };
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -654,6 +658,36 @@ export default function GuildStateProvider({ children }) {
       state,
       currentGuilds,
       activeGuildId,
+      // Add all functions to dependency array
+      getGuildBySlug,
+      getGuildById,
+      getUserGuildMemberships,
+      getUserGuild,
+      getAdminGuilds,
+      createGuild,
+      joinGuild,
+      approveMember,
+      rejectMember,
+      promoteGuild,
+      sendChallengeRequest,
+      setChallengeTime,
+      acceptChallenge,
+      rejectChallenge,
+      uploadGuildAvatar,
+      submitMatchProof,
+      finalizeMatch,
+      submitWebsiteComplaint,
+      issueCreationCode,
+      issuePromotionCode,
+      disbandGuild,
+      transferOwnership,
+      leaveGuild,
+      signupUser,
+      loginUser,
+      login,
+      logout,
+      setSelectedGame,
+      loginAsSpectator,
     ]
   );
 
