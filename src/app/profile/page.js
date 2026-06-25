@@ -9,7 +9,7 @@ export default function ProfilePage() {
   const context = useGuildContext();
 
   // Gracefully handle when context is not available (e.g., during error page rendering)
-  if (!context) {
+  if (!context.isReady) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
         <div className="max-w-3xl mx-auto space-y-6">
