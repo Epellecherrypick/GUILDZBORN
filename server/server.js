@@ -22,11 +22,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-app.use("/api/users", userRoutes);
+// Use auth routes for signup/login, and user routes for other user actions
+app.use('/api/auth', authRoutes);
 app.use("/api/guilds", guildRoutes);
 app.use("/api/codes", codeRoutes);
 app.use("/api/challenges", challengeRoutes);
-app.use('/api/auth', authRoutes);
+app.use("/api/users", userRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "GuildWatch backend is running." });
