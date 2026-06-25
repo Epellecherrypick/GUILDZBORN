@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import GuildStateProvider from "./components/GuildStateProvider";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,7 +25,18 @@ export default function RootLayout({ children }) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <GuildStateProvider>{children}</GuildStateProvider>
+        <GuildStateProvider>
+          {children}
+          <Toaster
+            position="bottom-center"
+            toastOptions={{
+              style: {
+                background: '#334155', // slate-700
+                color: '#f1f5f9',      // slate-100
+              },
+            }}
+          />
+        </GuildStateProvider>
       </body>
     </html>
   );
