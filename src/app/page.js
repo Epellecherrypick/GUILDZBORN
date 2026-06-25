@@ -1,25 +1,18 @@
-﻿"use client";
+﻿﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useGuildContext } from "./components/GuildStateProvider";
 
 export default function Home() {
-  const {
-    currentGuilds,
-    currentUser,
-    loggedIn,
-    selectedGame,
-    activeGuildId,
-    getUserGuild,
-    signupUser,
-    loginUser,
-    login,
-    logout,
-    setSelectedGame,
-    loginAsSpectator,
-    createGuild,
-  } = useGuildContext();
+  const context = useGuildContext();
+
+  // Gracefully handle when context is not available (e.g., during error page rendering)
+  if (!context.guilds) {
+    return null; // Render nothing if the context is not the full, hydrated state
+  }
+
+  const { currentGuilds, currentUser, loggedIn, selectedGame, activeGuildId, getUserGuild, signupUser, loginUser, login, logout, setSelectedGame, loginAsSpectator, createGuild } = context;
   const [selectedSlug, setSelectedSlug] = useState(currentGuilds?.[0]?.slug || "");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
