@@ -4,6 +4,16 @@ const Code = require("../models/Code");
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
+// GET all guilds
+router.get("/", async (req, res) => {
+  try {
+    const guilds = await Guild.find({}).sort({ promoted: -1, createdAt: -1 });
+    res.json(guilds);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post("/create", authMiddleware, async (req, res) => {
   const uid = req.user?.uid;
   const { game, name, description, joinCode, promotionCode } = req.body;
@@ -124,6 +134,48 @@ router.post('/:guildId/leave', authMiddleware, async (req, res) => {
     if (!member) return res.status(400).json({ error: 'You are not a member of this guild.' });
     if (member.role === 'creator') return res.status(400).json({ error: 'Creator cannot leave guild. Transfer ownership or disband first.' });
     guild.members = guild.members.filter((m) => m.id !== uid);
+    await guild.save();
+    res.json({ success: true, guild });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:guildId/join', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const guild = await Guild.findById(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found.' });
+
+    const allUserGuilds = await Guild.find({ 'members.id': uid });
+    const hasAcceptedGuild = allUserGuilds.some(g => g.members.some(m => m.id === uid && m.status === 'accepted'));
+
+    if (hasAcceptedGuild) {
+      return res.status(400).json({ error: 'You already have an active guild membership.' });
+    }
+    if (guild.members.some(m => m.id === uid) || guild.pendingRequests.some(p => p.id === uid)) {
+      return res.status(400).json({ error: 'You have already joined or requested to join this guild.' });
+    }
+
+    guild.pendingRequests.push({ id: uid, name: req.user.name, requestedAt: new Date() });
+    await guild.save();
+    res.json({ success: true, message: 'Your join request has been submitted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:guildId/approve', authMiddleware, async (req, res) => {
+  const { userId } = req.body;
+  const creatorId = req.user?.uid;
+  try {
+    const guild = await Guild.findById(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found.' });
+    if (guild.creator.id !== creatorId && !guild.admins.includes(creatorId)) return res.status(403).json({ error: 'Only an admin can approve members.' });
+    const request = guild.pendingRequests.find(p => p.id === userId);
+    if (!request) return res.status(404).json({ error: 'Pending request not found.' });
+    guild.pendingRequests = guild.pendingRequests.filter(p => p.id !== userId);
+    guild.members.push({ id: request.id, name: request.name, role: 'member', status: 'accepted', joinedAt: new Date() });
     await guild.save();
     res.json({ success: true, guild });
   } catch (err) {

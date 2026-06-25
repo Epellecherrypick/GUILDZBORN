@@ -8,6 +8,7 @@ dotenv.config();
 const userRoutes = require("./routes/users");
 const guildRoutes = require("./routes/guilds");
 const codeRoutes = require("./routes/codes");
+const challengeRoutes = require("./routes/challenges");
 const authRoutes = require('./routes/auth');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use(express.json());
 app.use("/api/users", userRoutes);
 app.use("/api/guilds", guildRoutes);
 app.use("/api/codes", codeRoutes);
+app.use("/api/challenges", challengeRoutes);
 app.use('/api/auth', authRoutes);
 
 app.get("/", (req, res) => {

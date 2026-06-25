@@ -84,9 +84,11 @@ export default function GuildStateProvider({ children }) {
       if (!resp.ok) throw new Error('Failed to fetch guilds');
       const guilds = await resp.json();
 
-      // You can add fetches for other data like challenges here if needed
+      const challengesResp = await fetch(`${API_BASE}/api/challenges`);
+      if (!challengesResp.ok) throw new Error('Failed to fetch challenges');
+      const challenges = await challengesResp.json();
 
-      setState(current => ({ ...current, guilds }));
+      setState(current => ({ ...current, guilds, challenges }));
     } catch (err) {
       console.error("Failed to refetch data:", err);
     }
@@ -322,48 +324,50 @@ export default function GuildStateProvider({ children }) {
     }
   }, [state.loggedIn, state.currentUser, state.authToken, API_BASE]);
 
-  const disbandGuild = (guildId) => {
-    const guild = getGuildById(guildId);
-    if (!guild) return { error: "Guild not found." };
-    if (state.currentUser.id !== guild.creator.id) return { error: "Only the creator can disband this guild." };
-    const updated = state.guilds.filter((g) => g.id !== guildId);
-    setState((current) => ({ ...current, guilds: updated }));
-    return { success: true };
-  };
-
-  const transferOwnership = useCallback((guildId, newOwnerId) => {
-    const guild = state.guilds.find((guild) => guild.id === guildId);
-    if (!guild) return { error: "Guild not found." };
-    if (state.currentUser.id !== guild.creator.id) return { error: "Only the creator can transfer ownership." };
-    if (!guild.members.some((m) => m.id === newOwnerId)) return { error: "New owner must be a member." };
-    const updatedGuilds = state.guilds.map((g) =>
-      g.id === guildId
-        ? {
-            ...g,
-            creator: guild.members.find((m) => m.id === newOwnerId) || g.creator,
-            admins: Array.from(new Set([...g.admins, newOwnerId])),
-            members: g.members.map((m) => (m.id === newOwnerId ? { ...m, role: "creator" } : m.id === state.currentUser.id ? { ...m, role: "member" } : m)),
-          }
-        : g
-    );
-    setState((current) => ({ ...current, guilds: updatedGuilds }));
-    return { success: true };
-  }, [state.guilds, state.currentUser.id]);
-
-  const leaveGuild = useCallback((guildId) => {
-    const guild = state.guilds.find((guild) => guild.id === guildId);
-    if (!guild) return { error: "Guild not found." };
-    if (!guild.members.some((m) => m.id === state.currentUser.id)) return { error: "You are not a member." };
-    const member = guild.members.find((m) => m.id === state.currentUser.id);
-    if (member.role === "creator") {
-      return { error: "Creator cannot leave guild. Transfer ownership or disband the guild first." };
+  const disbandGuild = useCallback(async (guildId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${state.authToken}` };
+      const resp = await fetch(`${API_BASE}/api/guilds/${guildId}/disband`, { method: 'POST', headers });
+      if (!resp.ok) {
+        const data = await resp.json();
+        return { error: data.error || "Failed to disband guild" };
+      }
+      await refetchData();
+      return { success: true };
+    } catch (err) {
+      return { error: `Network error: ${err.message}. Please try again.` };
     }
-    const updatedGuilds = state.guilds.map((g) =>
-      g.id === guildId ? { ...g, members: g.members.filter((m) => m.id !== state.currentUser.id) } : g
-    );
-    setState((current) => ({ ...current, guilds: updatedGuilds }));
-    return { success: true };
-  }, [state.guilds, state.currentUser.id]);
+  }, [state.authToken, API_BASE, refetchData]);
+
+  const transferOwnership = useCallback(async (guildId, newOwnerId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${state.authToken}` };
+      const resp = await fetch(`${API_BASE}/api/guilds/${guildId}/transfer`, { method: 'POST', headers, body: JSON.stringify({ newOwnerId }) });
+      if (!resp.ok) {
+        const data = await resp.json();
+        return { error: data.error || "Failed to transfer ownership" };
+      }
+      await refetchData();
+      return { success: true };
+    } catch (err) {
+      return { error: `Network error: ${err.message}. Please try again.` };
+    }
+  }, [state.authToken, API_BASE, refetchData]);
+
+  const leaveGuild = useCallback(async (guildId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${state.authToken}` };
+      const resp = await fetch(`${API_BASE}/api/guilds/${guildId}/leave`, { method: 'POST', headers });
+      if (!resp.ok) {
+        const data = await resp.json();
+        return { error: data.error || "Failed to leave guild" };
+      }
+      await refetchData();
+      return { success: true };
+    } catch (err) {
+      return { error: `Network error: ${err.message}. Please try again.` };
+    }
+  }, [state.authToken, API_BASE, refetchData]);
 
   const joinGuild = useCallback((guildId) => {
     return (async () => {
@@ -384,28 +388,20 @@ export default function GuildStateProvider({ children }) {
     })();
   }, [state.authToken, API_BASE, refetchData]);
 
-  const approveMember = useCallback((guildId, userId) => {
-    const updatedGuilds = state.guilds.map((guild) => {
-      if (guild.id !== guildId) return guild;
-      const request = guild.pendingRequests.find((request) => request.id === userId);
-      if (!request) return guild;
-      return {
-        ...guild,
-        pendingRequests: guild.pendingRequests.filter((request) => request.id !== userId),
-        members: [
-          ...guild.members,
-          {
-            id: request.id,
-            name: request.name,
-            role: "member",
-            status: "accepted",
-            joinedAt: new Date().toISOString(),
-          },
-        ],
-      };
-    });
-    setState((current) => ({ ...current, guilds: updatedGuilds }));
-  }, [state.guilds]);
+  const approveMember = useCallback(async (guildId, userId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${state.authToken}` };
+      const resp = await fetch(`${API_BASE}/api/guilds/${guildId}/approve`, { method: 'POST', headers, body: JSON.stringify({ userId }) });
+      if (!resp.ok) {
+        const data = await resp.json();
+        return { error: data.error || "Failed to approve member" };
+      }
+      await refetchData();
+      return { success: true };
+    } catch (err) {
+      return { error: `Network error: ${err.message}. Please try again.` };
+    }
+  }, [state.authToken, API_BASE, refetchData]);
 
   const rejectMember = useCallback((guildId, userId) => {
     const updatedGuilds = state.guilds.map((guild) =>
@@ -454,37 +450,22 @@ export default function GuildStateProvider({ children }) {
     }
   }, [state.loggedIn, state.currentUser, state.guilds, state.authToken, API_BASE]);
 
-  const sendChallengeRequest = useCallback((targetGuildId) => {
-    const adminGuild = getAdminGuilds()[0];
-    if (!adminGuild) {
-      return { error: "You must be a guild admin or creator to request a challenge." };
+  const sendChallengeRequest = useCallback(async (targetGuildId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${state.authToken}` };
+      const resp = await fetch(`${API_BASE}/api/challenges/create`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ targetGuildId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) return { error: data.error || "Failed to send challenge" };
+      await refetchData();
+      return { success: true };
+    } catch (err) {
+      return { error: `Network error: ${err.message}. Please try again.` };
     }
-    if (adminGuild.id === targetGuildId) {
-      return { error: "You cannot challenge your own guild." };
-    }
-    const alreadyRequested = state.challenges.some(
-      (challenge) =>
-        challenge.challengerGuildId === adminGuild.id &&
-        challenge.targetGuildId === targetGuildId &&
-        challenge.status === "pending"
-    );
-    if (alreadyRequested) {
-      return { error: "A challenge request is already pending." };
-    }
-    const challenge = {
-      id: `challenge-${Date.now()}`,
-      challengerGuildId: adminGuild.id,
-      targetGuildId,
-      status: "pending",
-      message: `${adminGuild.name} is requesting a challenge.`,
-      requestedAt: new Date().toISOString(),
-      matchTime: null,
-      scoreProofs: [],
-      finalResult: null,
-    };
-    setState((current) => ({ ...current, challenges: [...current.challenges, challenge] }));
-    return { success: true };
-  }, [state.challenges, getAdminGuilds]);
+  }, [state.authToken, API_BASE, refetchData]);
 
   const setChallengeTime = useCallback((challengeId, isoString) => {
     const validationError = validateChallengeTime(isoString);
