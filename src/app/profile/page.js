@@ -23,25 +23,31 @@ export default function ProfilePage() {
   if (!currentUser) return <div>Loading...</div>;
 
   const handleDisband = async (guildId) => {
-    const res = disbandGuild(guildId);
-    if (res.error) setMessage(res.error);
-    else setMessage("Guild disbanded.");
+    if (window.confirm("Are you sure you want to disband this guild? This action cannot be undone.")) {
+      const res = await disbandGuild(guildId);
+      if (res.error) setMessage(res.error);
+      else setMessage("Guild disbanded.");
+    }
   };
 
-  const handleTransfer = (guildId) => {
+  const handleTransfer = async (guildId) => {
     if (!transferTarget) return setMessage("Enter member id to transfer to.");
-    const res = transferOwnership(guildId, transferTarget);
-    if (res.error) setMessage(res.error);
-    else setMessage("Ownership transferred.");
+    if (window.confirm(`Are you sure you want to transfer ownership to ${transferTarget}? You will lose creator privileges.`)) {
+      const res = await transferOwnership(guildId, transferTarget);
+      if (res.error) setMessage(res.error);
+      else setMessage("Ownership transferred.");
+    }
   };
 
-  const handleLeave = (guildId) => {
-    const res = leaveGuild(guildId);
-    if (res.error) setMessage(res.error);
-    else setMessage("Left guild.");
+  const handleLeave = async (guildId) => {
+    if (window.confirm("Are you sure you want to leave this guild?")) {
+      const res = await leaveGuild(guildId);
+      if (res.error) setMessage(res.error);
+      else setMessage("Left guild.");
+    }
   };
 
-  const handleIssueCode = () => {
+  const handleIssueCode = async () => {
     const target = codeUid || currentUser.id;
     const res = await issueCreationCode(target, 3);
     setCodeResult(res);
