@@ -21,9 +21,7 @@ function getActiveGuildId(userId, guilds) {
 
 export function useGuildContext() {
   const context = useContext(GuildContext);
-  if (!context) {
-    throw new Error("useGuildContext must be used inside GuildStateProvider");
-  }
+  // Return null if the provider is not in the tree.
   return context;
 }
 

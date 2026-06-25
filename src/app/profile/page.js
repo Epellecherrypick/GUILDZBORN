@@ -5,15 +5,21 @@ import Link from "next/link";
 import { useGuildContext } from "../components/GuildStateProvider";
 
 export default function ProfilePage() {
-  const {
-    currentUser,
-    getUserGuildMemberships,
-    disbandGuild,
-    transferOwnership,
-    leaveGuild,
-    issueCreationCode,
-  } = useGuildContext();
+  const context = useGuildContext();
 
+  // Gracefully handle when context is not available (e.g., during error page rendering)
+  if (!context) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <h1 className="text-3xl font-semibold">Your profile</h1>
+          <p>Loading profile data...</p>
+        </div>
+      </main>
+    );
+  }
+
+  const { currentUser, getUserGuildMemberships, disbandGuild, transferOwnership, leaveGuild, issueCreationCode } = context;
   const memberships = getUserGuildMemberships();
   const [transferTarget, setTransferTarget] = useState("");
   const [message, setMessage] = useState("");
